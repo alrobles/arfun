@@ -17,3 +17,7 @@ docs/
 src/*.o
 src/*.so
 src/*.dll
+
+arfun-poster*.png
+arfun-poster*.svg
+arfun-poster*.pdf

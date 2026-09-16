@@ -23,6 +23,9 @@
 #' @param control List of control arguments passed to the optimizer
 #'   (defaults: \code{grtol = 1e-5, xtol = 1e-10, stepmax = 5,
 #'   maxeval = 3000}).
+#' @param extra_starts Optional numeric vector or matrix of additional start
+#'   points in \code{\link{niche_theta_layout}()} order -- e.g. the output of
+#'   \code{\link{niche_warmstart}()} (per-species \pkg{xnicher} fits).
 #' @param verbose Print per-start progress.
 #' @inheritParams niche_logpost
 #'
@@ -42,6 +45,7 @@ niche_multistart <- function(data,
                              n_starts = 32,
                              sigma_floor = 0.02, rho_cap = 0.98,
                              use_xptr = TRUE, seed = 1,
+                             extra_starts = NULL,
                              control = list(), verbose = TRUE) {
   parameterization <- match.arg(parameterization)
   model <- switch(parameterization,
@@ -54,6 +58,12 @@ niche_multistart <- function(data,
 
   starts <- .niche_start_design(rng$lo, rng$hi, n_starts - 1, seed)
   starts <- rbind(starts, rng$center)
+  if (!is.null(extra_starts)) {
+    extra_starts <- if (is.null(dim(extra_starts)))
+      matrix(extra_starts, nrow = 1) else as.matrix(extra_starts)
+    stopifnot(ncol(extra_starts) == n_par)
+    starts <- rbind(starts, extra_starts)
+  }
 
   lp_r <- function(th) {
     niche_logpost(th, data, parameterization = model,

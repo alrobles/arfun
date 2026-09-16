@@ -5,6 +5,7 @@
 ^\.github/
 ^_pkgdown\.yml$
 ^docs/
+^arfun-poster.*\.(png|svg|pdf)$
 ^\.\.Rcheck$
 ^\.Rhistory$
 ^\.RData$

@@ -33,7 +33,8 @@ Imports:
     stats,
     Rcpp,
     RcppParallel,
-    ucminfcpp
+    ucminfcpp,
+    xnicher (>= 1.0.0)
 LinkingTo:
     Rcpp,
     RcppParallel,
@@ -48,8 +49,7 @@ Suggests:
     sobol,
     testthat (>= 3.0.0),
     terra,
-    ucminf,
-    xnicher
+    ucminf
 Additional_repositories: https://stan-dev.r-universe.dev
 VignetteBuilder: knitr
 Config/testthat/edition: 3

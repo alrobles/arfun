@@ -145,3 +145,21 @@ test_that("masked species are predicted but contribute no likelihood", {
   row <- fm$boundary[fm$boundary$species == "sp2", ]
   expect_true(is.finite(row$sigma1) && row$sigma1 > 0)
 })
+
+test_that("niche_warmstart returns a finite start in layout order", {
+  skip_if_not_installed("xnicher")
+  skip_if_not_installed("ucminfcpp")
+  cl <- make_tiny_clade()
+  d <- prepare_phylo_niche_data(cl$occ, cl$bgl, cl$tree)
+  ws <- niche_warmstart(d, num_starts = 10)
+  expect_named(ws$theta, niche_theta_layout(d$S, d$P,
+                                            "noncentered_bounded"))
+  lp <- niche_logpost(ws$theta, d)
+  expect_true(is.finite(lp))
+  # masked species fall back to the ancestor (fitted = FALSE)
+  dm <- prepare_phylo_niche_data(cl$occ, cl$bgl, cl$tree,
+                                 mask_species = "sp2")
+  wm <- niche_warmstart(dm, num_starts = 10)
+  expect_false(wm$per_species$fitted[wm$per_species$species == "sp2"])
+  expect_true(is.finite(niche_logpost(wm$theta, dm)))
+})

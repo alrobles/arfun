@@ -13,6 +13,7 @@ niche_multistart(
   rho_cap = 0.98,
   use_xptr = TRUE,
   seed = 1,
+  extra_starts = NULL,
   control = list(),
   verbose = TRUE
 )
@@ -45,6 +46,10 @@ unavailable.}
 
 \item{seed}{Integer seed for the start design (LHS fallback only; Sobol is
 deterministic).}
+
+\item{extra_starts}{Optional numeric vector or matrix of additional start
+points in \code{\link{niche_theta_layout}()} order -- e.g. the output of
+\code{\link{niche_warmstart}()} (per-species \pkg{xnicher} fits).}
 
 \item{control}{List of control arguments passed to the optimizer
 (defaults: \code{grtol = 1e-5, xtol = 1e-10, stepmax = 5,

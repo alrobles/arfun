@@ -51,8 +51,8 @@ project_ancestral_niche <- function(phy,
   if (!requireNamespace("xnicher", quietly = TRUE)) {
     stop(
       "Package 'xnicher' is required but not installed.\n",
-      "Install it with:\n",
-      '  devtools::install_github("alrobles/xnicher")',
+      "Install it from CRAN with:\n",
+      '  install.packages("xnicher")',
       call. = FALSE
     )
   }
@@ -146,8 +146,8 @@ project_single_niche <- function(mu,
   if (!requireNamespace("xnicher", quietly = TRUE)) {
     stop(
       "Package 'xnicher' is required but not installed.\n",
-      "Install it with:\n",
-      '  devtools::install_github("alrobles/xnicher")',
+      "Install it from CRAN with:\n",
+      '  install.packages("xnicher")',
       call. = FALSE
     )
   }

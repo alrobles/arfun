@@ -58,6 +58,7 @@ reference:
       - niche_start_ranges
       - niche_multistart
       - niche_boundary_report
+      - niche_warmstart
 
   - title: Bayesian fitting
     desc: >
