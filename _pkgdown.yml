@@ -1,0 +1,90 @@
+url: https://alrobles.github.io/arfun/
+
+template:
+  bootstrap: 5
+  bootswatch: flatly
+  bslib:
+    primary: "#1B4F72"
+    border-radius: 0.4rem
+
+navbar:
+  title: arfun
+  structure:
+    left:  [intro, reference, articles, news]
+    right: [search, github]
+  components:
+    home:
+      icon: fa-home
+      href: index.html
+    github:
+      icon: fa-github
+      aria-label: GitHub repository
+      href: https://github.com/alrobles/arfun
+
+home:
+  title: Ancestral Reconstruction of the Fundamental Niche
+  description: >
+    Estimate species' fundamental niches as environmental ellipses from
+    presence-only data, then fit their evolution along a phylogeny under
+    Brownian motion, Ornstein-Uhlenbeck or an independent-species null.
+    A multistart MAP pipeline with explicit identifiability diagnostics
+    prepares initial values for full Bayesian inference in Stan.
+
+reference:
+  - title: Package
+    contents:
+      - arfun
+
+  - title: Preparing data
+    desc: >
+      From occurrence points and a shared accessible area to the data
+      blocks consumed by the joint models.
+    contents:
+      - prepare_niche_data
+      - prepare_phylo_data
+      - prepare_phylo_niche_data
+      - shared_background_sample
+
+  - title: MAP estimation and diagnostics
+    desc: >
+      The math-scale log-posterior, its compiled C++ backend, multistart
+      optimization and boundary diagnostics for poorly identified niches.
+    contents:
+      - niche_logpost
+      - niche_logpost_xptr
+      - niche_logpost_eval_xptr
+      - niche_theta_layout
+      - niche_empirical
+      - niche_start_ranges
+      - niche_multistart
+      - niche_boundary_report
+
+  - title: Bayesian fitting
+    desc: >
+      Stan models and posterior extraction for niche evolution.
+    contents:
+      - compile_model
+      - model_path
+      - fit_niche
+      - fit_evolution
+      - extract_pars
+      - extract_evolution_pars
+      - niche_overlap
+
+  - title: Projection and virtual species
+    desc: >
+      Project niches to geography and simulate virtual clades for
+      reverse-engineering benchmarks.
+    contents:
+      - probability_detection
+      - virtual_species_occurrences
+      - simulate_niche_evolution
+      - project_single_niche
+      - project_ancestral_niche
+
+articles:
+  - title: Workflows
+    contents:
+      - virtual-species-bioregions
+
+navbar_structure: {}

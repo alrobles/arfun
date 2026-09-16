@@ -1,0 +1,11 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^papers/
+^use_cases/
+^\.github/
+^_pkgdown\.yml$
+^docs/
+^\.\.Rcheck$
+^\.Rhistory$
+^\.RData$
+^\.Ruserdata$

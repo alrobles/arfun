@@ -1,0 +1,217 @@
+---
+title: "Virtual species in a real bioregion"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Virtual species in a real bioregion}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE, comment = "#>",
+  fig.width = 6, fig.height = 4.5, dpi = 110
+)
+```
+
+This vignette closes the simulation loop: **simulate a known
+niche-evolution process inside a real accessible area, then recover it**.
+It is the fastest way to learn what the joint phylo-niche model can and
+cannot identify before analysing empirical clades.
+
+The workflow:
+
+1. Take a real bioregion polygon as the shared accessible area $M$
+   (One Earth Bioregions Framework via `oneearthr`).
+2. Build a plausible two-dimensional environmental space over $M$.
+3. Evolve a virtual clade's niche under BM, OU and the
+   independent-species null.
+4. Draw occurrences with `virtual_species_occurrences()` and rebuild the
+   posterior modes with `niche_multistart()`.
+5. Compare recovered niches against the truth — including which species
+   land on identifiability boundaries.
+
+```{r setup}
+library(arfun)
+library(ape)
+set.seed(42)
+```
+
+## 1. A real accessible area
+
+We use the Andean Mountain Forests & Valleys bioregion (NT11) — home to
+the hummingbird clades that motivated this machinery. If `oneearthr` or
+`terra` are not installed we fall back to a synthetic rectangular $M$ so
+the vignette still builds.
+
+```{r bioregion}
+have_spatial <- requireNamespace("oneearthr", quietly = TRUE) &&
+                requireNamespace("terra", quietly = TRUE)
+
+if (have_spatial) {
+  bio <- oneearthr::oe_layer("bioregions")
+  nt11 <- bio[bio$bioregions == "NT11", ]
+  # rasterize the polygon footprint and keep cell centres as M points
+  r <- terra::rast(nt11, resolution = 0.25)
+  pts <- terra::as.points(terra::mask(r, nt11))
+  coords <- terra::crds(pts)
+  plot(nt11, main = "NT11 -- Andean Mountain Forests & Valleys")
+  points(coords, pch = ".", col = "steelblue")
+} else {
+  coords <- expand.grid(lon = seq(-78, -66, 0.25),
+                        lat = seq(-20, 6, 0.25))
+  coords <- as.matrix(coords)
+}
+nrow(coords)
+```
+
+## 2. A plausible environmental space over $M$
+
+Real clade pipelines extract ERA5/WorldClim values at each cell. Here we
+synthesise two axes as smooth functions of geography -- an
+elevation-flavoured temperature axis and a precipitation axis with
+longitudinal structure -- then standardise. What matters is that $M$ is
+*real*: its holes, corridor structure and extent are the bioregion's own.
+
+```{r env}
+lon <- scale(coords[, 1])[, 1]
+lat <- scale(coords[, 2])[, 1]
+temp <- -lat + 0.4 * lon + rnorm(length(lon), 0, 0.25)
+prec <- 0.8 * lon - 0.3 * lat + rnorm(length(lon), 0, 0.35)
+env_M <- scale(cbind(temp, prec))
+colnames(env_M) <- c("bio1", "bio12")
+
+plot(env_M, pch = ".", col = "grey70",
+     main = "Environmental space of M")
+```
+
+## 3. Evolve a virtual clade
+
+Six virtual species evolving under each process. `simulate_niche_evolution()`
+returns the true per-species $(\mu, \sigma, \rho)$ in exactly the
+parameterization the joint models estimate.
+
+```{r simulate}
+tree <- rtree(6, tip.label = paste0("vsp", 1:6))
+tree$edge.length <- tree$edge.length / max(ape::vcv(tree))  # unit height
+
+truths <- lapply(c("bm", "ou", "null"), function(pr)
+  simulate_niche_evolution(tree, process = pr,
+                           mu_anc = c(0, 0),
+                           log_sigma_anc = log(c(0.45, 0.45)),
+                           rate_mu = c(0.35, 0.35),
+                           rate_log_sigma = c(0.3, 0.3),
+                           rate_rho = 0.4,
+                           alpha = c(2, 2, 2), seed = 42))
+names(truths) <- c("bm", "ou", "null")
+
+# draw occurrences: 120 per species, shared accessible area
+occ_list <- lapply(truths, function(tr)
+  lapply(seq_along(tree$tip.label), function(s)
+    virtual_species_occurrences(env_M, mu = tr$mu[s, ],
+                                sigma = tr$sigma[s, ], rho = tr$rho[s],
+                                n_occ = 120)))
+for (pr in names(occ_list)) names(occ_list[[pr]]) <- tree$tip.label
+
+# the SAME background rows for every species -- never independent draws
+bg_list <- lapply(tree$tip.label, function(s) env_M)
+names(bg_list) <- tree$tip.label
+```
+
+```{r plot-truth, fig.show='hold'}
+# 68% ellipse of a bivariate normal niche, no extra dependency
+niche_ellipse <- function(mu, sigma, rho, level = 0.68, n = 100) {
+  Sig <- matrix(c(sigma[1]^2, rho * prod(sigma),
+                  rho * prod(sigma), sigma[2]^2), 2, 2)
+  L <- t(chol(Sig))
+  th <- seq(0, 2 * pi, length.out = n)
+  t(mu + sqrt(qchisq(level, 2)) * (L %*% rbind(cos(th), sin(th))))
+}
+
+tr <- truths$bm
+plot(env_M, pch = ".", col = "grey85",
+     main = "BM niches (true)", xlab = "bio1", ylab = "bio12")
+for (s in 1:6) {
+  lines(niche_ellipse(tr$mu[s, ], tr$sigma[s, ], tr$rho[s]),
+        col = s + 1, lwd = 2)
+}
+```
+
+## 4. Recover: multistart MAP
+
+```{r recover}
+fits <- lapply(names(occ_list), function(pr) {
+  d <- prepare_phylo_niche_data(occ_list[[pr]], bg_list, tree)
+  niche_multistart(d, "noncentered_bounded", n_starts = 12,
+                   seed = 7, verbose = FALSE)
+})
+names(fits) <- names(occ_list)
+fits$bm
+```
+
+## 5. Truth vs recovery
+
+```{r compare}
+recover_traits <- function(fit) {
+  # unpack the MAP back to (mu, sigma, rho) per species
+  data <- prepare_phylo_niche_data(occ_list$bm, bg_list, tree)
+  rep <- fit$boundary  # per-species sigma1, sigma2, rho at the MAP
+  rep[, c("species", "sigma1", "sigma2", "rho")]
+}
+
+for (pr in c("bm", "ou", "null")) {
+  tr <- truths[[pr]]; rec <- fits[[pr]]$boundary
+  cat("\n--- process:", pr, "---\n")
+  print(data.frame(
+    species = rec$species,
+    sigma_true = round(apply(tr$sigma, 1, min), 3),
+    sigma_map  = round(pmin(rec$sigma1, rec$sigma2), 3),
+    rho_true   = round(tr$rho, 2),
+    rho_map    = round(rec$rho, 2),
+    flag       = rec$flag))
+}
+```
+
+## 6. Masking a virtual microendemic
+
+Species whose occurrences occupy only a handful of environmental cells
+cannot identify a 2-D ellipse -- the presence-only likelihood is
+unbounded as $\sigma \to 0$. The recommended treatment is **masking**:
+keep the species in the phylogenetic prior but drop its likelihood, so
+the model *predicts* its niche from its relatives. The observed cluster
+then becomes a held-out validation target.
+
+```{r mask}
+# crush vsp1 down to a microendemic: resample only 3 unique cells
+occ_m <- occ_list$bm
+mu_m <- truths$bm$mu[1, ]
+d2 <- colSums((t(env_M) - mu_m)^2)
+few <- order(d2)[1:3]
+occ_m$vsp1 <- env_M[few, , drop = FALSE]
+
+d_mask <- prepare_phylo_niche_data(occ_m, bg_list, tree,
+                                   mask_species = "vsp1")
+fit_mask <- niche_multistart(d_mask, "noncentered_bounded",
+                             n_starts = 12, seed = 7, verbose = FALSE)
+fit_mask$boundary
+```
+
+`vsp1` carries flag `"masked"`: no likelihood contribution, but the
+phylogenetic prior still predicts a finite niche -- compare its
+`sigma1/sigma2` against the true value used to simulate it.
+
+## Reading the boundary flags
+
+| flag | meaning |
+|---|---|
+| `ok` | interior optimum |
+| `masked` | excluded from the likelihood, predicted by the prior |
+| `at_floor` | $\sigma$ pinned at `sigma_floor` -- check `n_cells` before calling it microendemic |
+| `rho_at_cap` | sliver-like ellipse, $\|\rho\| \to$ cap |
+| `sigma_huge` | nearly uniform niche over $M$ |
+| `few_cells` | narrow niche with < 15 unique cells -- candidate for masking |
+
+The empirical pipeline adds one more diagnostic -- whether the *union* of
+the shared background covers each species' cluster -- to separate real
+microendemism from background-sampling holes (see
+`?prepare_phylo_niche_data` and `?shared_background_sample`).

@@ -1,0 +1,58 @@
+Package: arfun
+Type: Package
+Title: Ancestral Reconstruction of the Fundamental Niche
+Version: 0.2.0.9000
+Authors@R:
+  c(person(given = "Angel",
+           family = "Robles-Fernandez",
+           email = "a.l.robles.fernandez@gmail.com",
+           role = c("aut", "cre")),
+    person(given = "Jorge",
+           family = "Soberon",
+           email = "jsoberon@ku.edu",
+           role = "aut")
+  )
+Maintainer: Angel Robles-Fernandez <a.l.robles.fernandez@gmail.com>
+Description:
+  Bayesian estimation of the fundamental niche as a multivariate normal
+  ellipsoid from occurrence data using Stan via cmdstanr, with phylogenetic
+  evolutionary models (BM, OU) and ancestral state reconstruction. The
+  package implements the presence-only likelihood of Jimenez et al.
+  (2019) <doi:10.1016/j.ecolmodel.2018.11.013> with full posterior
+  inference for niche centroid, tolerance (sigma) and correlation (rho).
+  Evolutionary models include Brownian motion and Ornstein-Uhlenbeck
+  processes on niche parameters, with optional evolution of the covariance
+  structure. All models support reduce_sum parallelisation for HPC
+  workflows.
+License: GPL (>= 3)
+Encoding: UTF-8
+LazyData: true
+Depends:
+    R (>= 3.5)
+Imports:
+    stats,
+    Rcpp,
+    RcppParallel,
+    ucminfcpp
+LinkingTo:
+    Rcpp,
+    RcppParallel,
+    ucminfcpp
+Suggests:
+    ape,
+    cmdstanr,
+    knitr,
+    oneearthr,
+    posterior,
+    rmarkdown,
+    sobol,
+    testthat (>= 3.0.0),
+    terra,
+    ucminf,
+    xnicher
+Additional_repositories: https://stan-dev.r-universe.dev
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.0
+URL: https://alrobles.github.io/arfun/, https://github.com/alrobles/arfun
+BugReports: https://github.com/alrobles/arfun/issues
