@@ -40,7 +40,7 @@ jobs:
       # the vignette has a fallback when oneearthr is unavailable.
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          packages: any::pkgdown, any::ape, any::Rcpp, any::RcppParallel, github::alrobles/ucminfcpp
+          packages: any::pkgdown, any::ape, any::Rcpp, any::RcppParallel, any::ucminfcpp
           needs: ""
 
       - name: Install arfun
