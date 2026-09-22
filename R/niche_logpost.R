@@ -53,11 +53,7 @@ niche_logpost <- function(theta, data,
                                                "unb", "bnd", "ctr", "ctrlr"),
                           sigma_floor = 0.02, rho_cap = 0.98,
                           debug = FALSE) {
-  model <- match.arg(parameterization)
-  model <- switch(model,
-                  noncentered = "unb", noncentered_bounded = "bnd",
-                  centered = "ctr", centered_lograte = "ctrlr",
-                  model)
+  model <- .canon_param(parameterization)
   pr <- .niche_unpack(theta, data$S, data$P, model)
 
   lp <- sum(stats::dnorm(pr$mu_anc, data$mu_anc_prior,
@@ -83,38 +79,27 @@ niche_logpost <- function(theta, data,
     if (debug) cat("  + rate priors+jac:", lp, "\n")
   }
 
-  noncentered <- model %in% c("unb", "bnd")
-  Jmat <- diag(1e-9, data$S)
-  if (noncentered) {
+  S <- data$S; P <- data$P
+  Jmat <- diag(1e-9, S)
+  if (.is_noncentered(model)) {
     lp <- lp + sum(stats::dnorm(pr$mu_raw, log = TRUE)) +
                 sum(stats::dnorm(pr$log_sigma_raw, log = TRUE)) +
                 sum(stats::dnorm(pr$z_rho_raw, log = TRUE))
-    L_C <- t(chol(data$C))
-    S <- data$S; P <- data$P
-    mu <- matrix(NA_real_, S, P)
-    log_sigma <- matrix(NA_real_, S, P)
-    for (k in seq_len(P)) {
-      mu[, k] <- pr$mu_anc[k] + sqrt(pr$rate_mu[k]) *
-                 (L_C %*% pr$mu_raw[, k])
-      log_sigma[, k] <- pr$log_sigma_anc[k] + sqrt(pr$rate_ls[k]) *
-                        (L_C %*% pr$log_sigma_raw[, k])
-    }
-    z_rho <- drop(pr$z_rho_anc + sqrt(pr$rate_rho) *
-                  (L_C %*% pr$z_rho_raw))
   } else {
-    mu <- pr$mu; log_sigma <- pr$log_sigma; z_rho <- pr$z_rho
-    S <- data$S; P <- data$P
     for (k in seq_len(P)) {
-      lp <- lp + .dmvn_lp(mu[, k], rep(pr$mu_anc[k], S),
+      lp <- lp + .dmvn_lp(pr$mu[, k], rep(pr$mu_anc[k], S),
                           pr$rate_mu[k] * data$C + Jmat) +
-                 .dmvn_lp(log_sigma[, k], rep(pr$log_sigma_anc[k], S),
+                 .dmvn_lp(pr$log_sigma[, k], rep(pr$log_sigma_anc[k], S),
                           pr$rate_ls[k] * data$C + Jmat)
     }
-    lp <- lp + .dmvn_lp(z_rho, rep(pr$z_rho_anc, S),
+    lp <- lp + .dmvn_lp(pr$z_rho, rep(pr$z_rho_anc, S),
                         pr$rate_rho * data$C + Jmat)
     if (debug) cat("  + centered MVN priors:", lp, "\n")
   }
   if (!is.finite(lp)) return(-Inf)
+
+  tr <- .reconstruct_traits(pr, data, model)
+  mu <- tr$mu; log_sigma <- tr$log_sigma; z_rho <- tr$z_rho
 
   cap <- if (model == "unb") 1 else rho_cap
   rho_v <- cap * tanh(z_rho)
@@ -152,12 +137,7 @@ niche_logpost_xptr <- function(data,
                                parameterization = "noncentered_bounded",
                                sigma_floor = 0.02, rho_cap = 0.98,
                                grad = c("central", "forward")) {
-  model <- match.arg(parameterization,
-                     c("noncentered_bounded", "noncentered", "centered",
-                       "centered_lograte", "unb", "bnd", "ctr", "ctrlr"))
-  model <- switch(model, noncentered = "unb",
-                  noncentered_bounded = "bnd", centered = "ctr",
-                  centered_lograte = "ctrlr", model)
+  model <- .canon_param(parameterization)
   grad <- match.arg(grad)
   if (!requireNamespace("ucminfcpp", quietly = TRUE)) {
     stop("Package 'ucminfcpp' is required for the compiled objective.\n",
@@ -231,7 +211,7 @@ niche_logpost_eval_xptr <- function(xptr, theta) {
   pr$lrate_ls <- take(P)
   pr$rate_mu <- exp(pr$lrate_mu)
   pr$rate_ls <- exp(pr$lrate_ls)
-  if (model %in% c("unb", "bnd")) {
+  if (.is_noncentered(model)) {
     pr$mu_raw <- matrix(take(S * P), S, P)
     pr$log_sigma_raw <- matrix(take(S * P), S, P)
   } else {
@@ -241,7 +221,7 @@ niche_logpost_eval_xptr <- function(xptr, theta) {
   pr$z_rho_anc <- take(1)
   pr$lrate_rho <- take(1)
   pr$rate_rho <- exp(pr$lrate_rho)
-  if (model %in% c("unb", "bnd")) pr$z_rho_raw <- take(S) else pr$z_rho <- take(S)
+  if (.is_noncentered(model)) pr$z_rho_raw <- take(S) else pr$z_rho <- take(S)
   if (i - 1 != length(theta)) {
     stop("`theta` has length ", length(theta), " but the '", model,
          "' layout needs ", i - 1, " (S = ", S, ", P = ", P, ")")
@@ -263,24 +243,16 @@ niche_logpost_eval_xptr <- function(xptr, theta) {
 #' @export
 niche_theta_layout <- function(S, P,
                                parameterization = "noncentered_bounded") {
-  model <- match.arg(parameterization,
-                     c("noncentered_bounded", "noncentered", "centered",
-                       "centered_lograte", "unb", "bnd", "ctr", "ctrlr"))
-  model <- switch(model, noncentered = "unb",
-                  noncentered_bounded = "bnd", centered = "ctr",
-                  centered_lograte = "ctrlr", model)
-  mat_names <- function(prefix) {
-    as.vector(outer(seq_len(S), seq_len(P),
-                    function(s, k) paste0(prefix, "[", s, ",", k, "]")))
-  }
-  trait <- if (model %in% c("unb", "bnd")) "mu_raw" else "mu"
-  shape <- if (model %in% c("unb", "bnd")) "log_sigma_raw" else "log_sigma"
-  zvec <- if (model %in% c("unb", "bnd")) "z_rho_raw" else "z_rho"
+  model <- .canon_param(parameterization)
+  nc <- .is_noncentered(model)
+  trait <- if (nc) "mu_raw" else "mu"
+  shape <- if (nc) "log_sigma_raw" else "log_sigma"
+  zvec  <- if (nc) "z_rho_raw" else "z_rho"
   c(paste0("mu_anc[", seq_len(P), "]"),
     paste0("log_sigma_anc[", seq_len(P), "]"),
     paste0("lrate_mu[", seq_len(P), "]"),
     paste0("lrate_ls[", seq_len(P), "]"),
-    mat_names(trait), mat_names(shape),
+    .mat_names(trait, S, P), .mat_names(shape, S, P),
     "z_rho_anc", "lrate_rho",
     paste0(zvec, "[", seq_len(S), "]"))
 }
@@ -332,12 +304,7 @@ niche_empirical <- function(data) {
 #' @export
 niche_start_ranges <- function(data,
                                parameterization = "noncentered_bounded") {
-  model <- match.arg(parameterization,
-                     c("noncentered_bounded", "noncentered", "centered",
-                       "centered_lograte", "unb", "bnd", "ctr", "ctrlr"))
-  model <- switch(model, noncentered = "unb",
-                  noncentered_bounded = "bnd", centered = "ctr",
-                  centered_lograte = "ctrlr", model)
+  model <- .canon_param(parameterization)
   S <- data$S; P <- data$P
   emp <- niche_empirical(data)
   occ_in <- do.call(rbind, lapply(seq_len(S), function(s) {
@@ -358,13 +325,9 @@ niche_start_ranges <- function(data,
       paste0("lrate_mu[", seq_len(P), "]"))
   add(rep(log(0.02), P), rep(log(1.5), P),
       paste0("lrate_ls[", seq_len(P), "]"))
-  if (model %in% c("unb", "bnd")) {
-    add(rep(-3, S * P), rep(3, S * P),
-        as.vector(outer(seq_len(S), seq_len(P),
-                        function(s, k) paste0("mu_raw[", s, ",", k, "]"))))
-    add(rep(-3, S * P), rep(3, S * P),
-        as.vector(outer(seq_len(S), seq_len(P),
-                        function(s, k) paste0("log_sigma_raw[", s, ",", k, "]"))))
+  if (.is_noncentered(model)) {
+    add(rep(-3, S * P), rep(3, S * P), .mat_names("mu_raw", S, P))
+    add(rep(-3, S * P), rep(3, S * P), .mat_names("log_sigma_raw", S, P))
   } else {
     mu_lo <- emp$mu; mu_hi <- emp$mu
     sd_lo <- emp$ls; sd_hi <- emp$ls
@@ -377,17 +340,14 @@ niche_start_ranges <- function(data,
       }
     }
     add(as.vector(mu_lo - 2 * emp$sd),
-        as.vector(mu_hi + 2 * emp$sd),
-        as.vector(outer(seq_len(S), seq_len(P),
-                        function(s, k) paste0("mu[", s, ",", k, "]"))))
+        as.vector(mu_hi + 2 * emp$sd), .mat_names("mu", S, P))
     add(as.vector(sd_lo - log(3)), as.vector(sd_hi + log(3)),
-        as.vector(outer(seq_len(S), seq_len(P),
-                        function(s, k) paste0("log_sigma[", s, ",", k, "]"))))
+        .mat_names("log_sigma", S, P))
   }
   pc <- atanh(pmin(pmax(stats::cor(occ_in)[1, 2], -0.95), 0.95))
   add(pc - 1, pc + 1, "z_rho_anc")
   add(log(0.02), log(1.5), "lrate_rho")
-  if (model %in% c("unb", "bnd")) {
+  if (.is_noncentered(model)) {
     add(rep(-3, S), rep(3, S),
         paste0("z_rho_raw[", seq_len(S), "]"))
   } else {
@@ -401,7 +361,6 @@ niche_start_ranges <- function(data,
         paste0("z_rho[", seq_len(S), "]"))
   }
   # masked species' empirical moments are NA -- widen them to the pool range
-  fix_na <- function(v, l, h) ifelse(is.na(v), l, ifelse(is.na(h), v, v))
   lo[is.na(lo)] <- -3; hi[is.na(hi)] <- 3
   names(lo) <- names(hi) <- nm
   bad <- !is.finite(lo) | !is.finite(hi) | lo >= hi

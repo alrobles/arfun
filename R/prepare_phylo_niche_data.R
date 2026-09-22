@@ -183,8 +183,6 @@ prepare_phylo_niche_data <- function(env_occ_list,
   )
 }
 
-`%||%` <- function(x, y) if (is.null(x)) y else x
-
 #' Draw one shared background sample for a clade
 #'
 #' Draws a single background (accessible-area) sample and returns it so the
@@ -205,14 +203,9 @@ prepare_phylo_niche_data <- function(env_occ_list,
 shared_background_sample <- function(env_matrix, n = NULL, seed = NULL) {
   env_matrix <- as.matrix(env_matrix)
   if (is.null(n) || n >= nrow(env_matrix)) return(env_matrix)
+  # Plain set.seed() drives the caller's RNG stream (standard R behaviour);
+  # the package must not read or write .GlobalEnv.
   if (!is.null(seed)) {
-    old <- if (exists(".Random.seed", envir = .GlobalEnv)) {
-      get(".Random.seed", envir = .GlobalEnv)
-    } else NULL
-    on.exit({
-      if (is.null(old)) rm(".Random.seed", envir = .GlobalEnv)
-      else assign(".Random.seed", old, envir = .GlobalEnv)
-    }, add = TRUE)
     set.seed(seed)
   }
   env_matrix[sample.int(nrow(env_matrix), n), , drop = FALSE]

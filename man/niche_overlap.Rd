@@ -17,8 +17,9 @@ niche_overlap(
 
 \item{raster2}{A \code{SpatRaster} of suitability values.}
 
-\item{threshold}{Numeric. Suitability threshold for binary overlap metrics
-(default 0.1, corresponding to the fundamental niche boundary).}
+\item{threshold}{Numeric. Suitability threshold for the binary metric
+(default 0.1). This is an arbitrary cutoff on the suitability scale,
+not an estimate of a fundamental-niche boundary.}
 
 \item{method}{Character. Which metrics to compute:
 \code{"schoener"} (Schoener's D),
@@ -34,10 +35,15 @@ two projected niche rasters. Useful for testing niche conservatism vs.
 divergence along phylogenetic branches.
 }
 \details{
-Schoener's D measures the normalized sum of absolute differences in
-suitability between two niches:
-D = 1 - 0.5 * sum(|S1(x) - S2(x)|) / sum(S1(x) + S2(x))
+These are raster-based summaries comparing two projected suitability
+surfaces. The two rasters must share extent, resolution, and CRS.
 
-Warren's I measures the Hellinger distance between the two suitability
-distributions. Both range from 0 (no overlap) to 1 (identical niches).
+Schoener's D is computed on the suitability densities normalized to
+sum 1:
+D = 1 - 0.5 * sum(|p1(x) - p2(x)|)
+
+Warren's I is the Hellinger-based similarity of the same normalized
+densities. Both range from 0 (no overlap) to 1 (identical niches).
+These are descriptive comparisons of projected surfaces, not a formal
+test of niche conservatism.
 }

@@ -17,7 +17,8 @@ docs/
 src/*.o
 src/*.so
 src/*.dll
-
+formal/.lake/
+formal/**/__pycache__/
 arfun-poster*.png
 arfun-poster*.svg
 arfun-poster*.pdf

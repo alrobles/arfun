@@ -48,10 +48,7 @@ niche_multistart <- function(data,
                              extra_starts = NULL,
                              control = list(), verbose = TRUE) {
   parameterization <- match.arg(parameterization)
-  model <- switch(parameterization,
-                  noncentered = "unb", noncentered_bounded = "bnd",
-                  centered = "ctr", centered_lograte = "ctrlr",
-                  parameterization)
+  model <- .canon_param(parameterization)
   rng <- niche_start_ranges(data, model)
   n_par <- length(rng$lo)
   theta_names <- names(rng$lo)
@@ -172,14 +169,9 @@ niche_multistart <- function(data,
   if (requireNamespace("sobol", quietly = TRUE)) {
     return(as.matrix(sobol::sobol_design(lower = lo, upper = hi, nseq = n)))
   }
+  # Scrambled LHS fallback. Plain set.seed() drives the caller's RNG stream
+  # (standard R behaviour); the package must not read or write .GlobalEnv.
   if (!is.null(seed)) {
-    old <- if (exists(".Random.seed", envir = .GlobalEnv)) {
-      get(".Random.seed", envir = .GlobalEnv)
-    } else NULL
-    on.exit({
-      if (is.null(old)) rm(".Random.seed", envir = .GlobalEnv)
-      else assign(".Random.seed", old, envir = .GlobalEnv)
-    }, add = TRUE)
     set.seed(seed)
   }
   u <- matrix(stats::runif(n * n_par), n, n_par)
@@ -187,23 +179,12 @@ niche_multistart <- function(data,
   sweep(u, 2, hi - lo, `*`) + rep(lo, each = n)
 }
 
-# Build the compiled objective via the Rcpp-exported factory.
+# Build the compiled objective via niche_logpost_xptr (model code already
+# canonicalized by the caller).
 .make_xptr_objective <- function(data, model, sigma_floor, rho_cap) {
-  if (!requireNamespace("ucminfcpp", quietly = TRUE)) {
-    stop("package 'ucminfcpp' is not installed")
-  }
-  make_niche_logpost_xptr(
-    occ = data$occ, occ_start = data$occ_start, N_occ = data$N_occ,
-    env_m = data$env_m, m_start = data$m_start, N_m = data$N_m,
-    C = data$C,
-    mu_anc_prior = data$mu_anc_prior, mu_anc_sigma = data$mu_anc_sigma,
-    z_rho_anc_prior = data$z_rho_anc_prior,
-    z_rho_anc_sigma = data$z_rho_anc_sigma,
-    rate_mu_scale = data$rate_mu_scale,
-    rate_ls_scale = data$rate_log_sigma_scale,
-    rate_rho_scale = data$rate_rho_scale,
-    model = model, rho_cap = rho_cap, sigma_floor = sigma_floor,
-    grad = "central")
+  niche_logpost_xptr(data, parameterization = model,
+                     sigma_floor = sigma_floor, rho_cap = rho_cap,
+                     grad = "central")
 }
 
 # Thin wrapper so niche_multistart works with either the Fortran 'ucminf'
@@ -245,27 +226,13 @@ ucminf_compat <- function(par, fn, control = list()) {
 niche_boundary_report <- function(data, theta,
                                   parameterization = "noncentered_bounded",
                                   sigma_floor = 0.02, rho_cap = 0.98) {
-  model <- switch(parameterization,
-                  noncentered = "unb", noncentered_bounded = "bnd",
-                  centered = "ctr", centered_lograte = "ctrlr",
-                  parameterization)
+  model <- .canon_param(parameterization)
   pr <- .niche_unpack(theta, data$S, data$P, model)
   S <- data$S; P <- data$P
 
-  if (model %in% c("unb", "bnd")) {
-    L_C <- t(chol(data$C))
-    log_sigma <- matrix(NA_real_, S, P)
-    z_rho <- numeric(S)
-    for (k in seq_len(P)) {
-      log_sigma[, k] <- pr$log_sigma_anc[k] + sqrt(pr$rate_ls[k]) *
-                        (L_C %*% pr$log_sigma_raw[, k])
-    }
-    z_rho <- drop(pr$z_rho_anc + sqrt(pr$rate_rho) *
-                  (L_C %*% pr$z_rho_raw))
-  } else {
-    log_sigma <- pr$log_sigma
-    z_rho <- pr$z_rho
-  }
+  tr <- .reconstruct_traits(pr, data, model)
+  log_sigma <- tr$log_sigma
+  z_rho <- tr$z_rho
   cap <- if (model == "unb") 1 else rho_cap
   sigma <- exp(log_sigma)
   rho <- cap * tanh(z_rho)

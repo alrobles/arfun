@@ -19,7 +19,10 @@ fit_evolution(
 }
 \arguments{
 \item{stan_data}{A named list of Stan data, as returned by
-\code{prepare_phylo_data()} or constructed manually. For the null model,
+\code{prepare_phylo_data()} or \code{prepare_phylo_niche_data()}.
+Bookkeeping fields attached by the prepare functions (\code{species},
+\code{masked}, \dots) are dropped automatically via
+\code{\link{stan_only}()} before sampling. For the null model,
 the phylogenetic matrix \code{C} should be omitted.}
 
 \item{model}{Character string specifying the model. One of:

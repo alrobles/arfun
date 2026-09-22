@@ -13,7 +13,9 @@
 #' alongside the default Sobol/LHS design. Per-species fits that fail to
 #' converge, or that land on the degenerate \eqn{\sigma \to 0} mode
 #' (far below the empirical spread), fall back to empirical moments;
-#' masked species fall back to the ancestor mean (raw residuals = 0).
+#' masked or otherwise unfitted species start at the phylogenetic
+#' conditional mean given the fitted species (the ancestor mean when no
+#' species fits).
 #'
 #' @param data A list from \code{\link{prepare_phylo_niche_data}()}.
 #' @param likelihood \code{xnicher} likelihood family used for the
@@ -49,12 +51,7 @@ niche_warmstart <- function(data,
          "Install it from CRAN: install.packages('xnicher')",
          call. = FALSE)
   }
-  model <- match.arg(parameterization,
-                     c("noncentered_bounded", "noncentered", "centered",
-                       "centered_lograte", "unb", "bnd", "ctr", "ctrlr"))
-  model <- switch(model, noncentered = "unb",
-                  noncentered_bounded = "bnd", centered = "ctr",
-                  centered_lograte = "ctrlr", model)
+  model <- .canon_param(parameterization)
   S <- data$S; P <- data$P
   emp <- niche_empirical(data)
 
@@ -99,7 +96,11 @@ niche_warmstart <- function(data,
     ls_hat[s, ] <- th[(P + 1):(2 * P)]
     if (P == 2L && length(th) > 2 * P) {
       L <- xnicher::cvine_cholesky(th[(2 * P + 1):length(th)], d = P)
-      rho <- min(max(tcrossprod(L)[1, 2], -0.999), 0.999)
+      # clamp to the model's admissible correlation range BEFORE dividing
+      # by rho_cap: |rho| > rho_cap would leave atanh() outside its
+      # domain and inject NaN into the start vector
+      rho <- tcrossprod(L)[1, 2]
+      rho <- sign(rho) * min(abs(rho), rho_cap * (1 - 1e-4))
       zr_hat[s] <- atanh(rho / rho_cap)
     }
     fitted[s] <- TRUE
@@ -119,15 +120,36 @@ niche_warmstart <- function(data,
   rate_ls <- pmax(apply(ls_hat[use, , drop = FALSE], 2, stats::var), 0.01)
   rate_rho <- max(stats::var(zr_hat[use]), 0.01)
 
-  # unfitted/masked species sit exactly at the ancestor (raw residuals = 0)
+  # unfitted/masked species start at the phylogenetic conditional mean
+  # given the fitted species, E[y_uf | y_f] = anc + C_uf C_ff^{-1}(y_f -
+  # anc): the BM/OU rate cancels in the conditioning weights. Falls back
+  # to the ancestor mean when no species fitted or C_ff is singular.
   for (s in which(!fitted)) {
     mu_hat[s, ] <- mu_anc
     ls_hat[s, ] <- ls_anc
     zr_hat[s] <- zr_anc
   }
+  fit_idx <- which(fitted)
+  uf <- which(!fitted)
+  if (length(fit_idx) && length(uf)) {
+    W <- tryCatch(
+      data$C[uf, fit_idx, drop = FALSE] %*%
+        solve(data$C[fit_idx, fit_idx, drop = FALSE]),
+      error = function(e) NULL)
+    if (!is.null(W) && all(is.finite(W))) {
+      mu_hat[uf, ] <- outer(rep(1, length(uf)), mu_anc) +
+        W %*% sweep(mu_hat[fit_idx, , drop = FALSE], 2, mu_anc)
+      ls_hat[uf, ] <- outer(rep(1, length(uf)), ls_anc) +
+        W %*% sweep(ls_hat[fit_idx, , drop = FALSE], 2, ls_anc)
+      zr_hat[uf] <- zr_anc + drop(W %*% (zr_hat[fit_idx] - zr_anc))
+    }
+  }
 
   L_C <- t(chol(data$C))
-  if (model %in% c("unb", "bnd")) {
+  if (.is_noncentered(model)) {
+    # Solve the raw residuals ONCE against the complete target vector:
+    # L_C is dense, so zeroing solved coordinates post hoc would also
+    # shift the implied traits of every species below the masked one.
     mu_raw <- matrix(0, S, P); ls_raw <- matrix(0, S, P)
     for (k in seq_len(P)) {
       mu_raw[, k] <- solve(L_C, (mu_hat[, k] - mu_anc[k]) /
@@ -136,8 +158,6 @@ niche_warmstart <- function(data,
                                sqrt(rate_ls[k]))
     }
     zr_raw <- solve(L_C, (zr_hat - zr_anc) / sqrt(rate_rho))
-    mu_raw[!fitted, ] <- 0; ls_raw[!fitted, ] <- 0
-    zr_raw[!fitted] <- 0
     theta <- c(mu_anc, ls_anc, log(rate_mu), log(rate_ls),
                as.vector(mu_raw), as.vector(ls_raw),
                zr_anc, log(rate_rho), zr_raw)

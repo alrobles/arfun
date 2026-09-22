@@ -65,5 +65,7 @@ start -- each species begins at its own independent niche optimum --
 alongside the default Sobol/LHS design. Per-species fits that fail to
 converge, or that land on the degenerate \eqn{\sigma \to 0} mode
 (far below the empirical spread), fall back to empirical moments;
-masked species fall back to the ancestor mean (raw residuals = 0).
+masked or otherwise unfitted species start at the phylogenetic
+conditional mean given the fitted species (the ancestor mean when no
+species fits).
 }

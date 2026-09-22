@@ -1,8 +1,10 @@
-#' Project ancestral niche states to geographic space
+#' Project supplied niche states to geographic space
 #'
-#' Takes ancestral niche parameter estimates from a phylogenetic evolutionary
-#' model and projects them onto a geographic raster using the xnicher
-#' habitat-suitability engine.
+#' Takes niche parameter estimates (extant species or ancestral states
+#' previously reconstructed by a phylogenetic evolutionary model) and
+#' projects them onto a geographic raster using the xnicher
+#' habitat-suitability engine. This function does not itself perform
+#' ancestral reconstruction; it consumes states estimated elsewhere.
 #'
 #' @param phy An object of class \code{phylo} from \pkg{ape}, with tip labels
 #'   matching the species for which ancestral states were reconstructed.
@@ -23,8 +25,9 @@
 #' @param ... Additional arguments passed to
 #'   \code{\link[xnicher]{habitat_suitability}}.
 #'
-#' @return A named list of SpatRaster objects (one per node), or \code{NULL}
-#'   if files were written to disk. Names are node labels.
+#' @return A named list of SpatRaster objects (one per node); names are
+#'   node labels. When \code{output_dir} is \code{NULL} the rasters are
+#'   in memory; otherwise they are file-backed GeoTIFFs.
 #'
 #' @details
 #' The function computes a habitat-suitability raster for each ancestral
@@ -51,8 +54,8 @@ project_ancestral_niche <- function(phy,
   if (!requireNamespace("xnicher", quietly = TRUE)) {
     stop(
       "Package 'xnicher' is required but not installed.\n",
-      "Install it from CRAN with:\n",
-      '  install.packages("xnicher")',
+      "Install it with:\n",
+      '  devtools::install_github("alrobles/xnicher")',
       call. = FALSE
     )
   }
@@ -64,11 +67,8 @@ project_ancestral_niche <- function(phy,
     )
   }
 
-  if (is.null(output_dir)) {
-    output_dir <- tempdir()
-  }
-
-  if (!dir.exists(output_dir)) {
+  write_files <- !is.null(output_dir)
+  if (write_files && !dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
   }
 
@@ -81,6 +81,21 @@ project_ancestral_niche <- function(phy,
     stop("dim(anc_Sigma)[1] must equal nrow(anc_mu)")
   }
 
+  p <- ncol(anc_mu)
+  if (!isTRUE(all.equal(dim(anc_Sigma), c(nrow(anc_mu), p, p)))) {
+    stop("dim(anc_Sigma) must be (nrow(anc_mu), ncol(anc_mu), ncol(anc_mu))")
+  }
+
+  # node_labels must correspond to tip + node labels of phy when available
+  if (!is.null(phy)) {
+    tree_nodes <- c(phy$tip.label, phy$node.label)
+    unknown <- setdiff(node_labels, tree_nodes)
+    if (length(phy$node.label) > 0 && length(unknown) > 0) {
+      stop("node_labels not found in 'phy': ",
+           paste(utils::head(unknown, 5), collapse = ", "))
+    }
+  }
+
   # Project each node
   rasters <- vector("list", nrow(anc_mu))
   names(rasters) <- node_labels
@@ -91,24 +106,17 @@ project_ancestral_niche <- function(phy,
 
     param <- list(mu = mu_i, Sigma = Sigma_i)
 
-    out_file <- file.path(output_dir,
-                          paste0(node_labels[i], "_", suffix, ".tif"))
+    out_file <- if (write_files)
+      file.path(output_dir, paste0(node_labels[i], "_", suffix, ".tif"))
+    else ""
 
-    if (nzchar(output_dir) && !is.null(output_dir)) {
-      rasters[[i]] <- xnicher::habitat_suitability(
-        param = param,
-        env = env,
-        output = out_file,
-        overwrite = overwrite,
-        ...
-      )
-    } else {
-      rasters[[i]] <- xnicher::habitat_suitability(
-        param = param,
-        env = env,
-        ...
-      )
-    }
+    rasters[[i]] <- xnicher::habitat_suitability(
+      param = param,
+      env = env,
+      output = out_file,
+      overwrite = overwrite,
+      ...
+    )
   }
 
   rasters
@@ -146,8 +154,8 @@ project_single_niche <- function(mu,
   if (!requireNamespace("xnicher", quietly = TRUE)) {
     stop(
       "Package 'xnicher' is required but not installed.\n",
-      "Install it from CRAN with:\n",
-      '  install.packages("xnicher")',
+      "Install it with:\n",
+      '  devtools::install_github("alrobles/xnicher")',
       call. = FALSE
     )
   }
@@ -178,8 +186,9 @@ project_single_niche <- function(mu,
 #' @param raster1 A \code{SpatRaster} of suitability values from
 #'   \code{project_single_niche()} or \code{project_ancestral_niche()}.
 #' @param raster2 A \code{SpatRaster} of suitability values.
-#' @param threshold Numeric. Suitability threshold for binary overlap metrics
-#'   (default 0.1, corresponding to the fundamental niche boundary).
+#' @param threshold Numeric. Suitability threshold for the binary metric
+#'   (default 0.1). This is an arbitrary cutoff on the suitability scale,
+#'   not an estimate of a fundamental-niche boundary.
 #' @param method Character. Which metrics to compute:
 #'   \code{"schoener"} (Schoener's D),
 #'   \code{"warren"} (Warren's I),
@@ -188,12 +197,17 @@ project_single_niche <- function(mu,
 #' @return A named numeric vector of overlap metrics.
 #'
 #' @details
-#' Schoener's D measures the normalized sum of absolute differences in
-#' suitability between two niches:
-#' D = 1 - 0.5 * sum(|S1(x) - S2(x)|) / sum(S1(x) + S2(x))
+#' These are raster-based summaries comparing two projected suitability
+#' surfaces. The two rasters must share extent, resolution, and CRS.
 #'
-#' Warren's I measures the Hellinger distance between the two suitability
-#' distributions. Both range from 0 (no overlap) to 1 (identical niches).
+#' Schoener's D is computed on the suitability densities normalized to
+#' sum 1:
+#' D = 1 - 0.5 * sum(|p1(x) - p2(x)|)
+#'
+#' Warren's I is the Hellinger-based similarity of the same normalized
+#' densities. Both range from 0 (no overlap) to 1 (identical niches).
+#' These are descriptive comparisons of projected surfaces, not a formal
+#' test of niche conservatism.
 #'
 #' @export
 niche_overlap <- function(raster1,
@@ -205,6 +219,12 @@ niche_overlap <- function(raster1,
   }
 
   method <- match.arg(method, several.ok = TRUE)
+
+  # rasters must share extent, resolution and alignment
+  if (!isTRUE(terra::compareGeom(raster1, raster2, stopOnError = FALSE))) {
+    stop("raster1 and raster2 must have identical extent, resolution, ",
+         "and CRS (see terra::compareGeom).")
+  }
 
   # Extract suitability values (ignore NA)
   s1 <- terra::values(raster1)
@@ -231,11 +251,10 @@ niche_overlap <- function(raster1,
   results <- list()
 
   if ("schoener" %in% method) {
-    # Schoener's D
-    diff_sum <- sum(abs(s1 - s2))
-    total_sum <- sum(s1 + s2)
-    D <- 1 - 0.5 * diff_sum / total_sum
-    results$D <- D
+    # Schoener's D on normalized densities (each raster scaled to sum 1)
+    p1 <- s1 / sum(s1)
+    p2 <- s2 / sum(s2)
+    results$D <- 1 - 0.5 * sum(abs(p1 - p2))
   }
 
   if ("warren" %in% method) {
@@ -254,8 +273,8 @@ niche_overlap <- function(raster1,
     shared <- sum(b1 * b2)
     total1 <- sum(b1)
     total2 <- sum(b2)
-    overlap_frac <- shared / pmax(total1, total2)
-    results$binary_overlap <- overlap_frac
+    denom <- pmax(total1, total2)
+    results$binary_overlap <- if (denom > 0) shared / denom else 0
   }
 
   unlist(results)

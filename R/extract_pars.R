@@ -42,59 +42,40 @@ extract_pars <- function(fit, prob = 0.95) {
 
   draws <- fit$draws(format = "df")
   alpha <- (1 - prob) / 2
+  qnames <- c(paste0("q", alpha * 100), paste0("q", (1 - alpha) * 100))
 
-  # Extract mu parameters
-  mu_cols <- grep("^mu\\[", names(draws), value = TRUE)
-  mu_draws <- as.matrix(draws[, mu_cols])
-  mu_summary <- data.frame(
-    dimension = seq_len(ncol(mu_draws)),
-    mean = colMeans(mu_draws),
-    sd = apply(mu_draws, 2, stats::sd),
-    lower = apply(mu_draws, 2, stats::quantile, probs = alpha),
-    upper = apply(mu_draws, 2, stats::quantile, probs = 1 - alpha),
-    row.names = NULL
-  )
-  names(mu_summary)[4:5] <- c(
-    paste0("q", alpha * 100),
-    paste0("q", (1 - alpha) * 100)
-  )
-
-  # Extract sigma parameters
-  sigma_cols <- grep("^sigma\\[", names(draws), value = TRUE)
-  sigma_draws <- as.matrix(draws[, sigma_cols])
-  sigma_summary <- data.frame(
-    dimension = seq_len(ncol(sigma_draws)),
-    mean = colMeans(sigma_draws),
-    sd = apply(sigma_draws, 2, stats::sd),
-    lower = apply(sigma_draws, 2, stats::quantile, probs = alpha),
-    upper = apply(sigma_draws, 2, stats::quantile, probs = 1 - alpha),
-    row.names = NULL
-  )
-  names(sigma_summary)[4:5] <- c(
-    paste0("q", alpha * 100),
-    paste0("q", (1 - alpha) * 100)
-  )
-
-  # Extract covariance matrix (posterior mean)
-  sigma_mat_cols <- grep("^Sigma\\[", names(draws), value = TRUE)
-  P <- length(mu_cols)
-  Sigma_mean <- matrix(0, P, P)
-  for (col_name in sigma_mat_cols) {
-    idx <- as.integer(
-      regmatches(col_name, gregexpr("[0-9]+", col_name))[[1]]
+  # Posterior summary per dimension for a vector parameter
+  vec_summary <- function(prefix) {
+    cols <- grep(paste0("^", prefix, "\\["), names(draws), value = TRUE)
+    d <- as.matrix(draws[, cols])
+    out <- data.frame(
+      dimension = seq_len(ncol(d)),
+      mean = colMeans(d),
+      sd = apply(d, 2, stats::sd),
+      lower = apply(d, 2, stats::quantile, probs = alpha),
+      upper = apply(d, 2, stats::quantile, probs = 1 - alpha),
+      row.names = NULL
     )
-    Sigma_mean[idx[1], idx[2]] <- mean(draws[[col_name]])
+    names(out)[4:5] <- qnames
+    out
   }
 
-  # Extract correlation matrix (posterior mean)
-  corr_cols <- grep("^R_corr\\[", names(draws), value = TRUE)
-  R_corr_mean <- matrix(0, P, P)
-  for (col_name in corr_cols) {
-    idx <- as.integer(
-      regmatches(col_name, gregexpr("[0-9]+", col_name))[[1]]
-    )
-    R_corr_mean[idx[1], idx[2]] <- mean(draws[[col_name]])
+  # Posterior-mean matrix for a matrix parameter (Stan "[i,j]" columns)
+  mat_mean <- function(prefix, P) {
+    cols <- grep(paste0("^", prefix, "\\["), names(draws), value = TRUE)
+    m <- matrix(0, P, P)
+    for (nm in cols) {
+      idx <- as.integer(regmatches(nm, gregexpr("[0-9]+", nm))[[1]])
+      m[idx[1], idx[2]] <- mean(draws[[nm]])
+    }
+    m
   }
+
+  mu_summary <- vec_summary("mu")
+  sigma_summary <- vec_summary("sigma")
+  P <- nrow(mu_summary)
+  Sigma_mean <- mat_mean("Sigma", P)
+  R_corr_mean <- mat_mean("R_corr", P)
 
   list(
     mu = mu_summary,

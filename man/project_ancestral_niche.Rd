@@ -2,7 +2,7 @@
 % Please edit documentation in R/project_niche.R
 \name{project_ancestral_niche}
 \alias{project_ancestral_niche}
-\title{Project ancestral niche states to geographic space}
+\title{Project supplied niche states to geographic space}
 \usage{
 project_ancestral_niche(
   phy,
@@ -45,13 +45,16 @@ extension).}
 \code{\link[xnicher]{habitat_suitability}}.}
 }
 \value{
-A named list of SpatRaster objects (one per node), or \code{NULL}
-  if files were written to disk. Names are node labels.
+A named list of SpatRaster objects (one per node); names are
+  node labels. When \code{output_dir} is \code{NULL} the rasters are
+  in memory; otherwise they are file-backed GeoTIFFs.
 }
 \description{
-Takes ancestral niche parameter estimates from a phylogenetic evolutionary
-model and projects them onto a geographic raster using the xnicher
-habitat-suitability engine.
+Takes niche parameter estimates (extant species or ancestral states
+previously reconstructed by a phylogenetic evolutionary model) and
+projects them onto a geographic raster using the xnicher
+habitat-suitability engine. This function does not itself perform
+ancestral reconstruction; it consumes states estimated elsewhere.
 }
 \details{
 The function computes a habitat-suitability raster for each ancestral

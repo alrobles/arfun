@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "lean_toolchain": "leanprover/lean4:v4.33.1",
+  "mathlib_revision": "0df444a360eaa60ab8c11dca51a86af692955474",
+  "supplement": "../EVALUATIONS/fundamental-niche-evolution-supplement.tex",
+  "scope": "Real-number mathematical specification. Correspondence to Stan is documented, not a formal verification of the Stan compiler, floating-point arithmetic, HMC, or ecological assumptions.",
+  "source_map": {
+    "ArfunFormal.Geometry": ["inst/stan/niche_bm_evolving_sigma.stan:23-30", "inst/stan/niche_ou_evolving_sigma.stan:39-46"],
+    "ArfunFormal.Likelihood": ["inst/stan/niche_bm_evolving_sigma.stan:35-59"],
+    "ArfunFormal.Quadrature": ["inst/stan/niche_bm_evolving_sigma.stan:53-59"],
+    "ArfunFormal.Evolution": ["inst/stan/niche_bm_evolving_sigma.stan:110-147", "inst/stan/niche_ou_evolving_sigma.stan:22-34"]
+  },
+  "theorems": [
+    {
+      "name": "ArfunFormal.Geometry.correlation_margin_pos",
+      "claim_es": "Si |rho| < 1, entonces 1 - rho^2 es positivo.",
+      "scope_es": "Hipótesis explícita sobre un número real; no es una comprobación de redondeo de tanh.",
+      "supplement_labels": ["eq:detSigma"]
+    },
+    {
+      "name": "ArfunFormal.Geometry.covariance_det",
+      "claim_es": "El determinante bivariado es sigma1^2 sigma2^2 (1-rho^2).",
+      "scope_es": "Identidad algebraica para todos los parámetros reales; la validez como covarianza requiere hipótesis adicionales.",
+      "supplement_labels": ["eq:detSigma"]
+    },
+    {
+      "name": "ArfunFormal.Geometry.covariance_det_pos",
+      "claim_es": "El determinante es positivo con tolerancias positivas y |rho| < 1.",
+      "scope_es": "No se usa el determinante solo como prueba genérica de positividad de matrices de mayor dimensión.",
+      "supplement_labels": ["eq:detSigma"]
+    },
+    {
+      "name": "ArfunFormal.Geometry.quadratic_completed_square",
+      "claim_es": "La forma cuadrática de Sigma se expresa como suma de dos cuadrados ponderados.",
+      "scope_es": "Se refiere a x' Sigma x, no a la forma de Mahalanobis con Sigma inversa.",
+      "supplement_labels": ["eq:Sigma"]
+    },
+    {
+      "name": "ArfunFormal.Geometry.quadratic_pos",
+      "claim_es": "La forma cuadrática es estrictamente positiva para todo vector no nulo.",
+      "scope_es": "Requiere sigma1 > 0, sigma2 > 0 y |rho| < 1; prueba la propiedad en dimensión dos.",
+      "supplement_labels": ["eq:Sigma"]
+    },
+    {
+      "name": "ArfunFormal.Geometry.covariance_posDef",
+      "claim_es": "La matriz del nicho satisface Matrix.PosDef.",
+      "scope_es": "Verifica simetría hermítica y positividad de la forma cuadrática, no solo el signo del determinante.",
+      "supplement_labels": ["eq:Sigma", "eq:detSigma"]
+    },
+    {
+      "name": "ArfunFormal.Geometry.cholesky_factorization",
+      "claim_es": "La fórmula bivariada utilizada en Stan satisface L L' = Sigma.",
+      "scope_es": "Identidad en números reales con |rho| < 1; no acota el error de una operación de punto flotante.",
+      "supplement_labels": ["eq:ellipseChol"]
+    },
+    {
+      "name": "ArfunFormal.Geometry.transformed_covariance_posDef",
+      "claim_es": "sigma = exp(eta) y rho = tanh(zeta) producen una covarianza definida positiva.",
+      "scope_es": "Para eta y zeta reales; tanh puede saturarse por redondeo en una implementación numérica.",
+      "supplement_labels": ["eq:Sigma", "eq:traits"]
+    },
+    {
+      "name": "ArfunFormal.Likelihood.normalizer_cancels",
+      "claim_es": "Un factor positivo común cancela entre numeradores y masa de normalización.",
+      "scope_es": "Presupone una masa positiva y finita representada por un real; no demuestra integrabilidad de un proceso geográfico.",
+      "supplement_labels": ["eq:normalizerCancellation"]
+    },
+    {
+      "name": "ArfunFormal.Likelihood.finite_normalizer_cancels",
+      "claim_es": "La cancelación también se deriva explícitamente para una suma finita de log-densidades.",
+      "scope_es": "Todos los valores del kernel y el factor común deben ser positivos.",
+      "supplement_labels": ["eq:normalizerCancellation"]
+    },
+    {
+      "name": "ArfunFormal.Likelihood.background_scale",
+      "claim_es": "Un factor común sale de la suma ponderada del fondo.",
+      "scope_es": "Identidad para una suma finita; no demuestra convergencia de la cuadratura a una integral.",
+      "supplement_labels": ["eq:weightedLL"]
+    },
+    {
+      "name": "ArfunFormal.Likelihood.background_pos",
+      "claim_es": "Un fondo finito no vacío con pesos y kernel positivos tiene masa positiva.",
+      "scope_es": "No garantiza que los puntos de fondo representen adecuadamente M.",
+      "supplement_labels": ["eq:weightedLL"]
+    },
+    {
+      "name": "ArfunFormal.Likelihood.quadrature_constant",
+      "claim_es": "Se obtiene exactamente el término omitido -n log(area/m).",
+      "scope_es": "Identidad bajo pesos iguales positivos; no justifica pesos iguales para cualquier diseño espacial.",
+      "supplement_labels": ["eq:stanLL"]
+    },
+    {
+      "name": "ArfunFormal.Likelihood.common_constant_cancels",
+      "claim_es": "Una constante de normalización común cancela en diferencias del log-score.",
+      "scope_es": "Mismo n y factor de escala para ambos modelos; no permite comparar sin ajustes conjuntos de datos diferentes.",
+      "supplement_labels": ["eq:stanLL"]
+    },
+    {
+      "name": "ArfunFormal.Likelihood.log_sum_exp_shift",
+      "claim_es": "La traslación algebraica utilizada para estabilizar log-sum-exp conserva su valor.",
+      "scope_es": "Suma finita no vacía sobre reales; no demuestra estabilidad ni ausencia de overflow en IEEE-754.",
+      "supplement_labels": ["eq:weightedLL"]
+    },
+    {
+      "name": "ArfunFormal.Quadrature.log_relative_error_bound",
+      "claim_es": "Un error relativo de masa no mayor que epsilon < 1 acota el error logarítmico por -log(1-epsilon).",
+      "scope_es": "La cota del error relativo es una hipótesis; no se afirma que los fondos empíricos la cumplan.",
+      "supplement_labels": ["eq:quadratureError", "eq:weightedLL", "eq:stanLL"]
+    },
+    {
+      "name": "ArfunFormal.Quadrature.logScore_error_bound",
+      "claim_es": "El error absoluto del log-score es como máximo n[-log(1-epsilon)].",
+      "scope_es": "Mantiene fijo el numerador, supone masas positivas y un error relativo acotado con 0 <= epsilon < 1.",
+      "supplement_labels": ["eq:quadratureError", "eq:conditionalLL", "eq:stanLL"]
+    },
+    {
+      "name": "ArfunFormal.Quadrature.bound_nonneg",
+      "claim_es": "La cota propuesta es no negativa.",
+      "scope_es": "n es natural y 0 <= epsilon < 1.",
+      "supplement_labels": ["eq:stanLL"]
+    },
+    {
+      "name": "ArfunFormal.Evolution.branchCovariance_posSemidef",
+      "claim_es": "B diag(longitudes) B' es semidefinida positiva si las longitudes son no negativas.",
+      "scope_es": "No construye una filogenia ni demuestra positividad estricta sin una condición adicional de rango o ramas terminales.",
+      "supplement_labels": ["eq:bmMVN"]
+    },
+    {
+      "name": "ArfunFormal.Evolution.noncentered_covariance",
+      "claim_es": "La escala sqrt(v) del factor produce la matriz v L L'.",
+      "scope_es": "Identidad matricial de la parametrización no centrada; no formaliza aquí toda la ley de un vector gaussiano transformado.",
+      "supplement_labels": ["eq:bmNC"]
+    },
+    {
+      "name": "ArfunFormal.Evolution.bm_contrast_variance",
+      "claim_es": "La expresión de la varianza del contraste se reduce a v(ti+tj-2tij).",
+      "scope_es": "Paso algebraico posterior a asumir las covarianzas BM; no es una prueba independiente de la SDE.",
+      "supplement_labels": ["eq:bmDifference"]
+    },
+    {
+      "name": "ArfunFormal.Evolution.bm_time_rescaling",
+      "claim_es": "Escalar el tiempo por c y la tasa por 1/c conserva v t.",
+      "scope_es": "c > 0; no modifica automáticamente las escalas de los priors del paquete.",
+      "supplement_labels": ["eq:timeRescaling"]
+    },
+    {
+      "name": "ArfunFormal.Evolution.ouCovariance_symm",
+      "claim_es": "La expresión OU es simétrica al intercambiar las dos especies.",
+      "scope_es": "Simetría algebraica; no prueba que una matriz arbitraria de tiempos compartidos sea realizable por un árbol.",
+      "supplement_labels": ["eq:ouCov"]
+    },
+    {
+      "name": "ArfunFormal.Evolution.ouCovariance_diagonal",
+      "claim_es": "La diagonal se reduce a q(1-exp(-2 alpha t))/(2 alpha).",
+      "scope_es": "Identidad de expresiones; la interpretación OU requiere alpha > 0 y tiempos válidos.",
+      "supplement_labels": ["eq:ouVariance", "eq:ouCov"]
+    },
+    {
+      "name": "ArfunFormal.Evolution.ouCovariance_nonneg",
+      "claim_es": "La entrada de covarianza OU es no negativa con alpha > 0, q >= 0 y tiempo compartido no negativo.",
+      "scope_es": "La no negatividad de entradas no equivale a demostrar positividad definida de toda la matriz OU.",
+      "supplement_labels": ["eq:ouCov"]
+    },
+    {
+      "name": "ArfunFormal.Evolution.stationary_root_identity",
+      "claim_es": "Agregar el término de covarianza de la raíz estacionaria produce la expresión OU estacionaria.",
+      "scope_es": "Identidad algebraica entre las dos fórmulas; no deriva todavía las distribuciones del proceso desde integrales estocásticas.",
+      "supplement_labels": ["eq:randomRoot", "eq:stationaryRoot"]
+    }
+  ]
+}

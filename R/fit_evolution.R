@@ -87,28 +87,28 @@ prepare_phylo_data <- function(phy,
     stop("ancestral centroid priors must be finite vectors of length 2",
          call. = FALSE)
   }
-  positive_scalar_inputs <- list(
-    rate_mu_scale, rate_log_sigma_scale, z_rho_anc_sigma,
-    rate_rho_scale, alpha_rho_scale, sigma_sq_rho_scale
-  )
-  positive_vector_inputs <- list(
-    alpha_mu_scale, sigma_sq_mu_scale,
-    alpha_log_sigma_scale, sigma_sq_log_sigma_scale
-  )
-  if (any(!vapply(positive_scalar_inputs, is.numeric, logical(1))) ||
-      any(!vapply(positive_vector_inputs, is.numeric, logical(1))) ||
-      any(!vapply(positive_scalar_inputs, function(x) {
-        length(x) == 1L && is.finite(x) && x > 0
-      }, logical(1))) ||
-      any(!vapply(positive_vector_inputs, function(x) {
-        length(x) == 2L && all(is.finite(x)) && all(x > 0)
-      }, logical(1))) ||
-      !is.numeric(z_rho_anc_prior) || length(z_rho_anc_prior) != 1L ||
-      !is.finite(z_rho_anc_prior) ||
-      length(grain_size) != 1L || !is.numeric(grain_size) ||
+  check_positive <- function(x, len, nm) {
+    if (!is.numeric(x) || length(x) != len || any(!is.finite(x)) ||
+        any(x <= 0)) {
+      stop(nm, " must be a positive finite vector of length ", len,
+           call. = FALSE)
+    }
+  }
+  for (nm in c("rate_mu_scale", "rate_log_sigma_scale", "z_rho_anc_sigma",
+               "rate_rho_scale", "alpha_rho_scale", "sigma_sq_rho_scale")) {
+    check_positive(get(nm), 1L, nm)
+  }
+  for (nm in c("alpha_mu_scale", "sigma_sq_mu_scale",
+               "alpha_log_sigma_scale", "sigma_sq_log_sigma_scale")) {
+    check_positive(get(nm), 2L, nm)
+  }
+  if (!is.numeric(z_rho_anc_prior) || length(z_rho_anc_prior) != 1L ||
+      !is.finite(z_rho_anc_prior)) {
+    stop("z_rho_anc_prior must be a finite scalar", call. = FALSE)
+  }
+  if (!is.numeric(grain_size) || length(grain_size) != 1L ||
       !is.finite(grain_size) || grain_size < 1) {
-    stop("evolutionary prior scales and grain_size must be positive finite values",
-         call. = FALSE)
+    stop("grain_size must be a positive finite scalar", call. = FALSE)
   }
   if (nrow(niche_params) != length(species)) {
     stop("niche_params must have one row per species", call. = FALSE)
@@ -238,7 +238,10 @@ prepare_phylo_data <- function(phy,
 #' null) to the fundamental niche parameters estimated by \code{fit_niche()}.
 #'
 #' @param stan_data A named list of Stan data, as returned by
-#'   \code{prepare_phylo_data()} or constructed manually. For the null model,
+#'   \code{prepare_phylo_data()} or \code{prepare_phylo_niche_data()}.
+#'   Bookkeeping fields attached by the prepare functions (\code{species},
+#'   \code{masked}, \dots) are dropped automatically via
+#'   \code{\link{stan_only}()} before sampling. For the null model,
 #'   the phylogenetic matrix \code{C} should be omitted.
 #' @param model Character string specifying the model. One of:
 #'   \code{"bm_constant"} (BM with constant Sigma),
@@ -301,6 +304,10 @@ fit_evolution <- function(stan_data,
   if (is.null(stan_data$grainsize)) {
     stan_data$grainsize <- as.integer(grainsize)
   }
+
+  # Bookkeeping fields from the prepare functions (species, masked, ...)
+  # are useful in R but invalid for CmdStan; keep only declared fields.
+  stan_data <- stan_only(stan_data, model)
 
   if (is.null(mod)) {
     mod <- compile_model(model)

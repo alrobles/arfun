@@ -28,8 +28,10 @@
 #'   with \eqn{h(x) = \tfrac12 (x-\mu)^\top \Sigma^{-1} (x-\mu)}, the
 #'   half-squared Mahalanobis distance. This matches the xsdm kernel
 #'   \code{log p = log pd - log1pexp(ctil + h)} with symmetric widths.
-#'   With \code{pd = 1} and \code{ctil -> -Inf} the probability tends to
-#'   the pure J&S suitability \eqn{\exp(-0.5\,q^2)} up to normalization.
+#'   As \code{ctil -> -Inf} the surface flattens toward \code{pd}
+#'   everywhere; in the regime \code{ctil + h >> 0} (large offset or far
+#'   from the centroid), \eqn{p \approx \mathrm{pd}\,\exp(-\mathrm{ctil}-h)},
+#'   i.e. proportional to the J&S suitability \eqn{\exp(-h)}.
 #'
 #' @seealso [virtual_species_occurrences()] to sample occurrences from
 #'   this surface.

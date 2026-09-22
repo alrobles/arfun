@@ -40,28 +40,18 @@ set.seed(42)
 ## 1. A real accessible area
 
 We use the Andean Mountain Forests & Valleys bioregion (NT11) — home to
-the hummingbird clades that motivated this machinery. If `oneearthr` or
-`terra` are not installed we fall back to a synthetic rectangular $M$ so
-the vignette still builds.
+the hummingbird clades that motivated this machinery. The rasterized
+NT11 footprint (0.25° cell centres) ships inside the package
+(`inst/extdata/`, extracted via
+[`oneearthr`](https://github.com/alrobles/oneearthr) + `terra`), so the
+vignette needs no spatial dependencies.
 
 ```{r bioregion}
-have_spatial <- requireNamespace("oneearthr", quietly = TRUE) &&
-                requireNamespace("terra", quietly = TRUE)
-
-if (have_spatial) {
-  bio <- oneearthr::oe_layer("bioregions")
-  nt11 <- bio[bio$bioregions == "NT11", ]
-  # rasterize the polygon footprint and keep cell centres as M points
-  r <- terra::rast(nt11, resolution = 0.25)
-  pts <- terra::as.points(terra::mask(r, nt11))
-  coords <- terra::crds(pts)
-  plot(nt11, main = "NT11 -- Andean Mountain Forests & Valleys")
-  points(coords, pch = ".", col = "steelblue")
-} else {
-  coords <- expand.grid(lon = seq(-78, -66, 0.25),
-                        lat = seq(-20, 6, 0.25))
-  coords <- as.matrix(coords)
-}
+coords <- as.matrix(readRDS(system.file("extdata", "nt11_points.rds",
+                                        package = "arfun")))
+plot(coords, pch = ".", cex = 3, col = "steelblue", asp = 1,
+     main = "NT11 -- Andean Mountain Forests & Valleys",
+     xlab = "lon", ylab = "lat")
 nrow(coords)
 ```
 

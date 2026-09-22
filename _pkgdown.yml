@@ -18,7 +18,6 @@ navbar:
       href: index.html
     github:
       icon: fa-github
-      aria-label: GitHub repository
       href: https://github.com/alrobles/arfun
 
 home:
@@ -70,6 +69,7 @@ reference:
       - fit_evolution
       - extract_pars
       - extract_evolution_pars
+      - stan_only
       - niche_overlap
 
   - title: Projection and virtual species
@@ -87,5 +87,7 @@ articles:
   - title: Workflows
     contents:
       - virtual-species-bioregions
+      - niche-roundtrip
+      - empirical-data
 
 navbar_structure: {}

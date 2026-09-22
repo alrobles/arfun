@@ -60,6 +60,10 @@
 #'     parallel likelihood evaluation
 #' }
 #'
+#' \code{reduce_sum} also compiles and runs serially without thread
+#' support on CmdStan >= 2.33 (verified on CmdStan 2.36); threading only
+#' changes speed, not correctness.
+#'
 #' For HPC workflows, pre-compile the model once and pass the \code{CmdStanModel}
 #' object to avoid redundant compilation across parallel jobs.
 #'
