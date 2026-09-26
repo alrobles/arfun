@@ -1,3 +1,8 @@
+# arfun 0.3.1
+
+* Fix: `niche_warmstart()$per_species` now returns `mu2` (the second
+  centroid coordinate) alongside `mu1`, `sigma1`, `sigma2`, `rho`.
+
 # arfun 0.3.0
 
 * `niche_logpost()`: exact log-posterior on the mathematical

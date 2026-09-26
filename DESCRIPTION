@@ -1,7 +1,7 @@
 Package: arfun
 Type: Package
 Title: Ancestral Reconstruction of the Fundamental Niche
-Version: 0.3.0
+Version: 0.3.1
 Authors@R:
   c(person(given = "Angel",
            family = "Robles-Fernandez",

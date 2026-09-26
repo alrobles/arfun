@@ -171,7 +171,9 @@ niche_warmstart <- function(data,
   per_species <- data.frame(
     species = data$species, fitted = fitted,
     n_cells = emp$n_cells,
-    mu1 = mu_hat[, 1], sigma1 = exp(ls_hat[, 1]),
+    mu1 = mu_hat[, 1],
+    mu2 = if (P > 1) mu_hat[, 2] else NA_real_,
+    sigma1 = exp(ls_hat[, 1]),
     sigma2 = if (P > 1) exp(ls_hat[, 2]) else NA_real_,
     rho = if (P == 2) rho_cap * tanh(zr_hat) else NA_real_)
   list(theta = theta, per_species = per_species)

@@ -100,6 +100,7 @@ test_that("masking a species does not shift implied fitted traits", {
   impl <- implied_traits(ws$theta, d)
   ps   <- ws$per_species
   expect_equal(unname(impl$mu[, 1]), ps$mu1, tolerance = 1e-10)
+  expect_equal(unname(impl$mu[, 2]), ps$mu2, tolerance = 1e-10)
   expect_equal(unname(exp(impl$ls[, 1])), ps$sigma1, tolerance = 1e-10)
   expect_equal(unname(exp(impl$ls[, 2])), ps$sigma2, tolerance = 1e-10)
   expect_equal(unname(0.98 * tanh(impl$zr)), ps$rho, tolerance = 1e-10)
