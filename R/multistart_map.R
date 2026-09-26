@@ -26,6 +26,9 @@
 #' @param extra_starts Optional numeric vector or matrix of additional start
 #'   points in \code{\link{niche_theta_layout}()} order -- e.g. the output of
 #'   \code{\link{niche_warmstart}()} (per-species \pkg{xnicher} fits).
+#' @param ncores Integer; optimize starts in parallel with
+#'   \code{parallel::mclapply} (forked workers share the compiled objective,
+#'   which is read-only during evaluation). Default 1 = serial loop.
 #' @param verbose Print per-start progress.
 #' @inheritParams niche_logpost
 #'
@@ -46,7 +49,8 @@ niche_multistart <- function(data,
                              sigma_floor = 0.02, rho_cap = 0.98,
                              use_xptr = TRUE, seed = 1,
                              extra_starts = NULL,
-                             control = list(), verbose = TRUE) {
+                             control = list(), verbose = TRUE,
+                             ncores = 1L) {
   parameterization <- match.arg(parameterization)
   model <- .canon_param(parameterization)
   rng <- niche_start_ranges(data, model)
@@ -117,8 +121,8 @@ niche_multistart <- function(data,
   }
   sols <- vector("list", nrow(starts))
   ord <- order(start_lp, decreasing = TRUE)
-  for (i in ord) {
-    if (!is.finite(start_lp[i])) next
+  ord <- ord[is.finite(start_lp[ord])]
+  run_start <- function(i) {
     r <- tryCatch(
       if (use_xptr) {
         ucminfcpp::ucminf_xptr(par = unname(starts[i, ]), xptr = xptr,
@@ -127,15 +131,30 @@ niche_multistart <- function(data,
         ucminf_compat(par = starts[i, ], fn = obj, control = ctrl)
       },
       error = function(e) NULL)
-    if (is.null(r)) next
-    sols[[i]] <- list(par = r$par, lp = -r$value, conv = r$convergence,
-                      maxgrad = r$info[["maxgradient"]],
-                      start_i = i, start_lp = start_lp[i])
+    if (is.null(r)) return(NULL)
+    list(par = r$par, lp = -r$value, conv = r$convergence,
+         maxgrad = r$info[["maxgradient"]],
+         start_i = i, start_lp = start_lp[i])
+  }
+  ncores <- max(1L, as.integer(ncores))
+  if (ncores > 1L && length(ord) > 1L) {
+    par_sols <- parallel::mclapply(ord, run_start, mc.cores = ncores)
     if (verbose) {
-      message(sprintf("start %2d -> lp %.2f conv %s maxgrad %.2e",
-                      i, -r$value, r$convergence,
-                      ifelse(is.null(r$info[["maxgradient"]]), NA_real_,
-                             r$info[["maxgradient"]])))
+      for (s in par_sols) if (!is.null(s))
+        message(sprintf("start %2d -> lp %.2f conv %s maxgrad %.2e",
+                        s$start_i, s$lp, s$conv,
+                        ifelse(is.null(s$maxgrad), NA_real_, s$maxgrad)))
+    }
+    sols[ord] <- par_sols
+  } else {
+    for (i in ord) {
+      s <- run_start(i)
+      sols[[i]] <- s
+      if (verbose && !is.null(s)) {
+        message(sprintf("start %2d -> lp %.2f conv %s maxgrad %.2e",
+                        i, s$lp, s$conv,
+                        ifelse(is.null(s$maxgrad), NA_real_, s$maxgrad)))
+      }
     }
   }
   sols <- sols[!vapply(sols, is.null, logical(1))]

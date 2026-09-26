@@ -1,3 +1,9 @@
+# arfun 0.3.1.9000
+
+* `niche_multistart()` gains `ncores` for parallel start optimization
+  via `parallel::mclapply` (the compiled objective is read-only during
+  evaluation, so forked workers share it safely).
+
 # arfun 0.3.1
 
 * Fix: `niche_warmstart()$per_species` now returns `mu2` (the second
